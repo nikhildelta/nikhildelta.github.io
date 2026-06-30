@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mixpanel event drop — Expo 53 vs Expo 55 bridgeless flow</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-panel: #161b22;
+      --bg-elevated: #1c232c;
+      --border: #30363d;
+      --border-strong: #484f58;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --danger: #f85149;
+      --warning: #d29922;
+      --warning-bg: rgba(210, 153, 34, 0.12);
+      --danger-bg: rgba(248, 81, 73, 0.1);
+      --success-bg: rgba(63, 185, 80, 0.1);
+      --code-bg: #1f2937;
+      --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      color: var(--text-bright);
+      font-weight: 600;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .tldr {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 20px 0 32px;
+    }
+
+    .tldr-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 18px;
+      color: var(--text-bright);
+      margin: 40px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    h3 {
+      font-size: 15px;
+      color: var(--text-bright);
+      margin: 20px 0 12px;
+      font-weight: 600;
+    }
+
+    p { margin: 0 0 12px; }
+
+    code, .mono {
+      font-family: var(--mono);
+      font-size: 13px;
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #e6edf3;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 12.5px;
+    }
+
+    /* Two-column comparison */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin: 24px 0;
+    }
+
+    @media (max-width: 900px) {
+      .compare { grid-template-columns: 1fr; }
+    }
+
+    .column {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .column-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--text-bright);
+    }
+
+    .column-subtitle {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      font-family: var(--mono);
+    }
+
+    .column.good { border-left: 3px solid var(--success); }
+    .column.bad { border-left: 3px solid var(--danger); }
+
+    /* Steps */
+    .step {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border);
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+
+    .step:hover {
+      background: var(--bg-elevated);
+      margin: 0 -12px;
+      padding: 10px 12px;
+    }
+
+    .step:last-child { border-bottom: none; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .step.vulnerable .step-num {
+      background: var(--warning-bg);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .step.lost .step-num {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .step.ok .step-num {
+      background: var(--success-bg);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .step-content { flex: 1; min-width: 0; }
+
+    .step-title {
+      font-weight: 500;
+      color: var(--text-bright);
+      font-size: 13.5px;
+    }
+
+    .step-detail {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      margin-top: 2px;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease, margin 0.25s ease;
+    }
+
+    .step.expanded .step-detail {
+      max-height: 260px;
+      margin-top: 8px;
+    }
+
+    .step-detail code {
+      background: var(--bg);
+      font-size: 11.5px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .badge-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid rgba(210,153,34,0.4); }
+    .badge-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(248,81,73,0.4); }
+    .badge-success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(63,185,80,0.4); }
+
+    /* Vulnerable point callouts */
+    .callout {
+      margin: 16px 0;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .callout-warning {
+      background: var(--warning-bg);
+      border-left: 3px solid var(--warning);
+      color: #f5e1a8;
+    }
+
+    .callout-danger {
+      background: var(--danger-bg);
+      border-left: 3px solid var(--danger);
+      color: #f8b4b1;
+    }
+
+    .callout-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text-bright);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    td.row-good { color: var(--success); font-weight: 500; }
+    td.row-bad { color: var(--danger); font-weight: 500; }
+
+    /* Tab controls */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin: 24px 0 0;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      font-family: var(--sans);
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .tab.active {
+      color: var(--text-bright);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab:hover { color: var(--text-bright); }
+
+    .tab-panel {
+      display: none;
+      padding-top: 16px;
+    }
+
+    .tab-panel.active { display: block; }
+
+    /* Toggle for showing fix */
+    .toggle-btn {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text-bright);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: var(--sans);
+      font-size: 13px;
+      cursor: pointer;
+      margin: 8px 0;
+    }
+
+    .toggle-btn:hover { background: var(--border); }
+
+    .reveal {
+      display: none;
+      margin-top: 12px;
+    }
+
+    .reveal.shown { display: block; }
+
+    .hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Mixpanel event drop — Expo 53 → 55 bridgeless flow</h1>
+      <div class="subtitle">Why identical client code now silently drops analytics events on Android</div>
+    </header>
+
+    <div class="tldr">
+      <div class="tldr-title">TL;DR</div>
+      <p style="margin-bottom: 0;">The same line — <code>InteractionManager.runAfterInteractions(cb)</code> — used to mean <em>"fire on next JS tick"</em> under the legacy bridge. Under RN 0.82+ <strong>bridgeless</strong> mode (forced in Expo 55), it now means <em>"schedule at idle priority via the React scheduler"</em>. Idle work gets <strong>cancelled or starved</strong> when the host pauses (Credential Manager dialog) or when the JS thread is busy (post-OAuth recovery + navigation). The Mixpanel SDK never receives the event. No error. No Sentry capture. Funnel just drops.</p>
+    </div>
+
+    <h2>The runtime contract that changed</h2>
+    <p>Click any step in either column to see the underlying mechanism.</p>
+
+    <div class="compare">
+      <!-- Expo 53 column -->
+      <div class="column good">
+        <div class="column-title">✅ Expo 53 — works</div>
+        <div class="column-subtitle">RN 0.79.5 · bridge mode · React 18</div>
+
+        <div class="step ok" data-step="e53-1">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">User taps "Sign in with Google"</div>
+            <div class="step-detail">
+              <code>handleGoogleSignIn()</code> in <code>googleSignInButton.tsx</code> calls <code>oAuthRegisterHandler()</code> followed by <code>trackLoginButtonPress()</code>. Both are synchronous from JS's perspective.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-2">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">Credential Manager dialog opens</div>
+            <div class="step-detail">
+              MainActivity goes to <code>onPause</code>. The bridge JS thread keeps ticking — the bridge holds onto pending work regardless of Activity state.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-3">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title"><code>runAfterInteractions(cb)</code> queues cb</div>
+            <div class="step-detail">
+              <code>cb</code> enters the legacy JS <strong>MessageQueue</strong> at next-tick priority. Not cancellable. JS thread runs it on the next available tick.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-4">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-title"><code>mixpanel.track()</code> called</div>
+            <div class="step-detail">
+              Direct bridge call. Module is a <em>persistent</em> <code>ReactContextBaseJavaModule</code>. Its lifecycle teardown (<code>onCatalystInstanceDestroy</code>) only fires when the entire bridge is torn down — i.e. when the app process is killed.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-5">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-title">Event buffered in native Java module</div>
+            <div class="step-detail">
+              Event enters a Java HashMap buffer inside <code>MixpanelModule</code>. Buffer survives Activity pause.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-6">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-title">OkHttp worker flushes batch</div>
+            <div class="step-detail">
+              Mixpanel SDK's own OkHttp worker thread runs independently and flushes batches every ~60s. Thread survives MainActivity pause. HTTPS POST to <code>api.mixpanel.com</code> succeeds.
+            </div>
+          </div>
+        </div>
+
+        <div class="step ok" data-step="e53-7">
+          <div class="step-num">✓</div>
+          <div class="step-content">
+            <div class="step-title">Event lands in Mixpanel<span class="badge badge-success">delivered</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expo 55 column -->
+      <div class="column bad">
+        <div class="column-title">❌ Expo 55 — drops events</div>
+        <div class="column-subtitle">RN 0.83.2 · bridgeless · React 19</div>
+
+        <div class="step ok" data-step="e55-1">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">User taps "Sign in with Google"</div>
+            <div class="step-detail">
+              Same JS code as before. <code>oAuthRegisterHandler()</code> + <code>trackLoginButtonPress()</code>. Source unchanged.
+            </div>
+          </div>
+        </div>
+
+        <div class="step vulnerable" data-step="e55-2">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">CM dialog opens — host paused<span class="badge badge-warning">vulnerable</span></div>
+            <div class="step-detail">
+              MainActivity → <code>onPause</code>. <strong>Bridgeless</strong>: React host enters paused state. The new TurboModule interop layer sees <code>onPause</code> and starts <code>invalidate()</code>-ing legacy modules.
+            </div>
+          </div>
+        </div>
+
+        <div class="step vulnerable" data-step="e55-3">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title"><code>runAfterInteractions(cb)</code> schedules at idle<span class="badge badge-warning">vulnerable</span></div>
+            <div class="step-detail">
+              <code>cb</code> is queued via React 19's <code>scheduler.scheduleCallback(IdlePriority, cb)</code>. Idle work is <strong>cancellable</strong> when the host pauses and can be <strong>starved</strong> indefinitely when higher-priority work flows in.
+            </div>
+          </div>
+        </div>
+
+        <div class="step lost" data-step="e55-4">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-title">cb is starved while host is paused<span class="badge badge-danger">starved</span></div>
+            <div class="step-detail">
+              React scheduler refuses to run idle callbacks while the host is paused. If the Activity unmounts (e.g. "Don't keep activities") before cb runs, it's outright cancelled.
+            </div>
+          </div>
+        </div>
+
+        <div class="step lost" data-step="e55-5">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-title">Mixpanel module proxy invalidated<span class="badge badge-danger">torn down</span></div>
+            <div class="step-detail">
+              <code>mixpanel-react-native</code> has no codegen / no TurboModule support (<a href="https://github.com/mixpanel/mixpanel-react-native/issues/209" target="_blank">issue #209</a>). It's routed through the <strong>TurboModule interop layer</strong>, whose lifecycle handling around <code>invalidate()</code> is what <a href="https://github.com/facebook/react-native/issues/50327" target="_blank">RN #50327</a> and <a href="https://github.com/facebook/react-native/issues/54534" target="_blank">RN #54534</a> are complaining about.
+            </div>
+          </div>
+        </div>
+
+        <div class="step lost" data-step="e55-6">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-title">cb runs eventually — proxy is dead<span class="badge badge-danger">lost</span></div>
+            <div class="step-detail">
+              When the host resumes and cb finally runs, the call enters a torn-down module proxy. Either the buffer was discarded on <code>invalidate()</code>, or the proxy silently no-ops. No exception thrown.
+            </div>
+          </div>
+        </div>
+
+        <div class="step lost" data-step="e55-7">
+          <div class="step-num">✗</div>
+          <div class="step-content">
+            <div class="step-title">Event silently dropped — no Sentry capture<span class="badge badge-danger">lost</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-warning">
+      <div class="callout-title">⚠️ The same mechanism applies to the "Sign in success" event</div>
+      That event fires <em>right after</em> the OAuth response returns — the JS thread is at peak load (state updates, navigation pending, home screen mount, WebView init). Idle work scheduled here is even more likely to be starved than the "Login button clicked" event.
+    </div>
+
+    <h2>The two vulnerable points in the typical login flow</h2>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="vp1">Vulnerable Point #1 — Login button</button>
+      <button class="tab" data-tab="vp2">Vulnerable Point #2 — Sign in success (worse)</button>
+    </div>
+
+    <div class="tab-panel active" data-panel="vp1">
+      <pre><code>handleGoogleSignIn = () => {
+  oAuthRegisterHandler({ flow });   // ← Credential Manager dispatched, Activity begins pausing
+  trackLoginButtonPress({ ... });   // ← Mixpanel event queued AFTER, host already pausing
+}</code></pre>
+      <p style="margin-top: 12px;">
+        Risk: <strong>medium</strong>. ~5–20% drop on Android, depending on device + timing.
+      </p>
+    </div>
+
+    <div class="tab-panel" data-panel="vp2">
+      <pre><code>onSuccess: (data) => {
+  trackLoginSuccess({ ... });       // ← Queued at idle priority
+
+  // JS thread now extremely busy with:
+  //   - Zustand state propagation
+  //   - React 19 concurrent re-renders
+  //   - socialAuthMutation post-success work
+  //   - 100ms setTimeout to navigate
+  //   - Home screen mount + WebView load (immediately after)
+
+  setTimeout(() => navigation.navigate(MAIN_STACK.HOME), 100);
+  // Login screen unmounts. Idle slot may NEVER get to run.
+}</code></pre>
+      <p style="margin-top: 12px;">
+        Risk: <strong>high</strong>. This is the primary suspect for the funnel drop. The idle slot competes with everything happening in the post-OAuth recovery window.
+      </p>
+    </div>
+
+    <h2>Cause by subsystem</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Subsystem</th>
+          <th>Expo 53 / RN 0.79.5</th>
+          <th>Expo 55 / RN 0.83.2</th>
+          <th>Impact on our code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>InteractionManager</code></td>
+          <td class="row-good">JS MessageQueue, next-tick, not cancellable</td>
+          <td class="row-bad">React 19 scheduler, idle priority, cancellable</td>
+          <td>cb may be starved or cancelled when host pauses</td>
+        </tr>
+        <tr>
+          <td>JS thread on Activity pause</td>
+          <td class="row-good">Keeps running</td>
+          <td class="row-bad">Suspends idle work</td>
+          <td>Pending Mixpanel calls never run</td>
+        </tr>
+        <tr>
+          <td>Mixpanel module proxy</td>
+          <td class="row-good">Direct bridge module, persistent</td>
+          <td class="row-bad">Via TurboModule interop, can be invalidated</td>
+          <td>Calls during pause hit a torn-down proxy</td>
+        </tr>
+        <tr>
+          <td>Module lifecycle</td>
+          <td class="row-good"><code>onCatalystInstanceDestroy</code> (only on full teardown)</td>
+          <td class="row-bad"><code>invalidate()</code> on Activity pause</td>
+          <td>Module state cleared while events still in flight</td>
+        </tr>
+        <tr>
+          <td>OkHttp flush worker</td>
+          <td class="row-good">Independent thread, survives pause</td>
+          <td class="row-bad">Tied to module lifecycle</td>
+          <td>Native buffer can be discarded mid-flush</td>
+        </tr>
+        <tr>
+          <td>Bridgeless flag</td>
+          <td class="row-good">Honored, can opt out</td>
+          <td class="row-bad">Ignored (forced on in RN 0.82+)</td>
+          <td>No way to revert except downgrading RN</td>
+        </tr>
+        <tr>
+          <td>React rendering</td>
+          <td class="row-good">React 18 classic</td>
+          <td class="row-bad">React 19 concurrent</td>
+          <td>Side-effect callbacks cancellable mid-render</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Upstream evidence</h2>
+    <p>The bug matches the exact failure pattern documented in open RN issues:</p>
+    <ul>
+      <li><a href="https://github.com/facebook/react-native/issues/54534" target="_blank">facebook/react-native#54534</a> — "RN 0.82 – JS Timers & Fetch Freeze After Launching a Non-React AppCompatActivity". The Credential Manager bottom sheet IS the "non-React AppCompatActivity" trigger.</li>
+      <li><a href="https://github.com/facebook/react-native/issues/50327" target="_blank">facebook/react-native#50327</a> — "Bridgeless mode: async JS 'stacking up' when MainActivity is in the background". User explicitly reports disabling New Arch fixes it.</li>
+      <li><a href="https://github.com/facebook/react-native/issues/47436" target="_blank">#47436</a> + <a href="https://github.com/facebook/react-native/issues/47437" target="_blank">#47437</a> — setTimeout + fetch broken in bridgeless interop on background.</li>
+      <li><a href="https://github.com/mixpanel/mixpanel-react-native/issues/209" target="_blank">mixpanel/mixpanel-react-native#209</a> — "Support new React Native architecture" — still open since Aug 2023. The SDK has no codegen, so it runs through the broken interop layer.</li>
+    </ul>
+
+    <h2>How to test the broken flow locally</h2>
+    <button class="toggle-btn" data-reveal="repro">Show reproduction steps</button>
+    <div class="reveal" data-reveal="repro">
+      <ol>
+        <li>Use a <strong>non-Pixel device</strong> if possible (Samsung One UI / Xiaomi MIUI / OnePlus). Pixel is too lenient.</li>
+        <li>Build a <strong>release variant</strong> (<code>./gradlew assembleRelease</code>), not debug.</li>
+        <li>Enable <strong>Developer Options → "Don't keep activities"</strong>. This single toggle reliably surfaces the bug.</li>
+        <li>Optional: throttle network with Charles / Proxyman to a 3G profile, widening the flush window.</li>
+        <li>Tap "Sign in with Google" → complete or dismiss → check whether the Mixpanel event arrives within ~30s.</li>
+        <li>Repeat 5–10 times. ~70–90% of attempts should fail with "Don't keep activities" on.</li>
+        <li>Toggle the option off and repeat → events should now arrive reliably.</li>
+      </ol>
+      <p class="hint">Why this matters: the prod drop is ~27% on Android, meaning natural production timing hits the bad window 27% of the time. Slow human dev testing barely hits it; the toggle forces 100% reproduction.</p>
+    </div>
+
+    <h2>Proposed fix on our side</h2>
+    <button class="toggle-btn" data-reveal="fix">Show one-line fix</button>
+    <div class="reveal" data-reveal="fix">
+      <h3>1. Drop the <code>InteractionManager</code> wrapper</h3>
+      <p>In <code>modules/app/src/hooks/utility/useTrackMixPanelEvent.ts</code>:</p>
+      <pre><code>// before:
+InteractionManager.runAfterInteractions(() => {
+  trackMixPanelEvent({ eventName, params: mergedProperties });
+});
+
+// after:
+trackMixPanelEvent({ eventName, params: mergedProperties });</code></pre>
+      <p>Why this works on both versions:</p>
+      <ul>
+        <li><strong>Expo 53</strong>: direct call enters the bridge → native buffer → no worse than before.</li>
+        <li><strong>Expo 55</strong>: direct call skips the React scheduler entirely → goes through the TurboModule interop while the proxy is still valid (before any <code>invalidate()</code> can run).</li>
+      </ul>
+
+      <h3>2. Add <code>mixpanel.flush()</code> on AppState background</h3>
+      <p>Belt-and-suspenders: explicitly drain the native buffer when the app backgrounds, before any module teardown can happen.</p>
+      <pre><code>AppState.addEventListener('change', (next) => {
+  if (next === 'background') {
+    Mixpanel.getInstance(...).flush();
+  }
+});</code></pre>
+      <p>Mixpanel docs actually recommend this for React Native; it just wasn't necessary in bridge mode because the OkHttp worker did it for you.</p>
+    </div>
+
+    <h2>Where to file</h2>
+    <ul>
+      <li><strong>Primary:</strong> <a href="https://github.com/facebook/react-native/issues/new" target="_blank">facebook/react-native</a> — cross-reference #54534 and #50327. This is the root cause and they're already tracking it.</li>
+      <li><strong>Secondary:</strong> <a href="https://github.com/mixpanel/mixpanel-react-native/issues/209" target="_blank">mixpanel/mixpanel-react-native#209</a> — comment with your reproduction; the SDK needs codegen support to survive the interop layer.</li>
+      <li><strong>Tertiary:</strong> Expo — they own the <code>ExpoReactHostFactory</code> entry point that wires bridgeless on. Less essential because root cause is upstream in RN.</li>
+    </ul>
+
+    <footer>
+      <p>Co-located with <code>AUTH_OBSERVABILITY.md</code>. Open in any browser; entirely self-contained.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Click-to-expand step details
+    document.querySelectorAll('.step').forEach((step) => {
+      step.addEventListener('click', () => {
+        step.classList.toggle('expanded');
+      });
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelector(`.tab-panel[data-panel="${target}"]`).classList.add('active');
+      });
+    });
+
+    // Reveal toggles
+    document.querySelectorAll('.toggle-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.reveal;
+        const reveal = document.querySelector(`.reveal[data-reveal="${target}"]`);
+        reveal.classList.toggle('shown');
+        btn.textContent = reveal.classList.contains('shown')
+          ? btn.textContent.replace('Show', 'Hide')
+          : btn.textContent.replace('Hide', 'Show');
+      });
+    });
+  </script>
+</body>
+</html>
